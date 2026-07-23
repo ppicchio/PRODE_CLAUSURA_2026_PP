@@ -172,21 +172,57 @@ async function apiFetch(path){
 }
 
 /* ===================== RESOLVER ID DE LIGA ===================== */
+// ID que api-football usa habitualmente para "Argentina Primera División" (Liga Profesional).
+// No confirmado con certeza propia: lo usamos como candidato, pero SIEMPRE se valida
+// contra la lista real que devuelve /leagues?country=Argentina antes de aceptarlo.
+const LIGA_ID_CANDIDATO = 128;
+
 async function resolverLigaId(){
   const metaSnap = await db.ref("meta/ligaId").once("value");
   if(metaSnap.exists()){
     LIGA_ID = metaSnap.val();
     return LIGA_ID;
   }
-  const data = await apiFetch("/leagues?search=Argentina");
-  const candidatos = (data.response || []).filter(x =>
-    x.country && x.country.name === "Argentina" &&
-    x.league && x.league.name && x.league.name.toLowerCase().includes("liga profesional")
-  );
-  if(candidatos.length === 0){
-    throw new Error("No se encontró la Liga Profesional Argentina en la respuesta de api-football. Revisar manualmente.");
+
+  const data = await apiFetch("/leagues?country=Argentina");
+  const ligas = (data.response || []).map(x => ({
+    id: x.league.id, nombre: x.league.name, tipo: x.league.type,
+    temporadas: (x.seasons||[]).map(s=>s.year)
+  }));
+
+  console.log("Respuesta cruda de /leagues?country=Argentina:", data);
+  const debugBox = document.getElementById("debugBox");
+  debugBox.style.display = "block";
+  if(ligas.length === 0){
+    debugBox.textContent =
+      "La API devolvió 0 ligas. Respuesta cruda:\n" +
+      "errors: " + JSON.stringify(data.errors) + "\n" +
+      "results: " + data.results + "\n" +
+      "parameters: " + JSON.stringify(data.parameters) + "\n" +
+      "(revisá esto: puede ser un problema de API Key, de plan, o de límite diario alcanzado)";
+  } else {
+    debugBox.textContent = "Ligas de Argentina (api-football):\n" +
+      ligas.map(l => `#${l.id} — ${l.nombre} (${l.tipo}) — temporadas: ${l.temporadas.join(",")}`).join("\n");
   }
-  LIGA_ID = candidatos[0].league.id;
+
+  // 1) Buscamos por nombre, de forma flexible.
+  let candidatos = ligas.filter(l =>
+    l.tipo === "League" &&
+    /liga profesional|primera divisi|primera nacional/i.test(l.nombre) &&
+    !/nacional b|femenin|reserva/i.test(l.nombre)
+  );
+
+  // 2) Si no aparece nada por nombre, probamos con el ID candidato conocido, sólo si existe en la lista.
+  if(candidatos.length === 0){
+    const match = ligas.find(l => l.id === LIGA_ID_CANDIDATO);
+    if(match) candidatos = [match];
+  }
+
+  if(candidatos.length === 0){
+    throw new Error("No se encontró automáticamente la Liga Profesional Argentina. Mirá el cuadro de abajo con todas las ligas devueltas por la API y decime cuál ID corresponde.");
+  }
+
+  LIGA_ID = candidatos[0].id;
   await db.ref("meta/ligaId").set(LIGA_ID);
   return LIGA_ID;
 }

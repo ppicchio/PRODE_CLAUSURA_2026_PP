@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prode Clausura 2026 - Liga Profesional Argentina</title>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --azul:#0b3d91; --celeste:#4a90e2; --dorado:#f4b400; --verde:#1e8e3e; --rojo:#d93025;
+    --bg:#0f1720; --panel:#16212e; --panel2:#1c2b3a; --texto:#e8eef4; --muted:#8ea3b8;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:'Segoe UI',Arial,sans-serif; background:linear-gradient(180deg,#0b1420,#0f1720 40%);
+    color:var(--texto); padding-bottom:60px;
+  }
+  header{
+    background:linear-gradient(90deg,var(--azul),var(--celeste));
+    padding:22px 16px; text-align:center; box-shadow:0 4px 14px rgba(0,0,0,.4);
+  }
+  header h1{margin:0; font-size:1.6em;}
+  header p{margin:4px 0 0; opacity:.9; font-size:.95em;}
+  nav{
+    display:flex; flex-wrap:wrap; justify-content:center; gap:8px; padding:14px 10px; background:var(--panel);
+    position:sticky; top:0; z-index:50; box-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+  nav button{
+    background:var(--panel2); color:var(--texto); border:1px solid #2a3d52; padding:8px 16px;
+    border-radius:20px; cursor:pointer; font-size:.9em; transition:.2s;
+  }
+  nav button.activo, nav button:hover{background:var(--celeste); border-color:var(--celeste); color:#fff;}
+  main{max-width:980px; margin:0 auto; padding:16px;}
+  section{display:none;}
+  section.activo{display:block; animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+  h2{color:var(--dorado); border-bottom:2px solid #2a3d52; padding-bottom:8px;}
+  .jornada{background:var(--panel); border-radius:10px; margin-bottom:18px; overflow:hidden; border:1px solid #223245;}
+  .jornada-titulo{
+    background:var(--panel2); padding:10px 14px; font-weight:600; display:flex; justify-content:space-between;
+    align-items:center; cursor:pointer;
+  }
+  .partidos{padding:6px 10px 12px;}
+  table{width:100%; border-collapse:collapse; font-size:.88em;}
+  th,td{padding:6px 8px; text-align:center; border-bottom:1px solid #223245;}
+  th{color:var(--muted); font-weight:500;}
+  .equipo{text-align:left; white-space:nowrap;}
+  select{
+    background:var(--bg); color:var(--texto); border:1px solid #2a3d52; border-radius:6px; padding:4px 6px;
+    font-size:.85em;
+  }
+  select.ok{border-color:var(--verde);}
+  .marcador{font-weight:700; color:var(--dorado); min-width:46px; display:inline-block;}
+  .estado{font-size:.72em; color:var(--muted);}
+  .estado.vivo{color:var(--rojo); font-weight:700;}
+  .tabla-pos{width:100%; border-collapse:collapse; margin-top:10px;}
+  .tabla-pos th,.tabla-pos td{padding:10px; text-align:center; border-bottom:1px solid #223245;}
+  .tabla-pos tr:first-child td{color:var(--dorado); font-weight:700;}
+  .top-bar-wrap{position:relative; height:420px; background:var(--panel); border-radius:10px; padding:12px;}
+  .info-box{
+    background:var(--panel2); border-left:4px solid var(--celeste); padding:10px 14px; border-radius:6px;
+    font-size:.85em; color:var(--muted); margin-bottom:14px;
+  }
+  .btn{
+    background:var(--celeste); color:#fff; border:none; padding:10px 18px; border-radius:8px; cursor:pointer;
+    font-size:.9em; font-weight:600;
+  }
+  .btn:disabled{opacity:.5; cursor:not-allowed;}
+  .fila-participante{display:flex; align-items:center; gap:8px; margin-bottom:10px;}
+  .fila-participante select{flex:1;}
+  footer{text-align:center; color:var(--muted); font-size:.8em; margin-top:30px;}
+  .debug{font-size:.72em; color:var(--muted); white-space:pre-wrap; background:#0b141d; padding:8px; border-radius:6px; max-height:160px; overflow:auto;}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🏆 Prode Clausura 2026</h1>
+  <p>Liga Profesional Argentina · Pablo, Cristina, Julieta, Bianca</p>
+</header>
+
+<nav>
+  <button data-sec="fixtures" class="activo">Fixture y Pronósticos</button>
+  <button data-sec="posiciones">Tabla de Posiciones</button>
+  <button data-sec="carrera">Carrera de Puntos</button>
+</nav>
+
+<main>
+
+  <section id="sec-fixtures" class="activo">
+    <h2>Fixture y Pronósticos</h2>
+    <div class="info-box">
+      Elegí quién sos y cargá tu pronóstico (L/E/V) para cada partido. Los resultados se actualizan
+      automáticamente desde la API cuando el partido termina.
+    </div>
+    <div class="fila-participante">
+      <label for="selYo">Estoy pronosticando como:</label>
+      <select id="selYo">
+        <option value="">-- elegir --</option>
+        <option>Pablo</option><option>Cristina</option><option>Julieta</option><option>Bianca</option>
+      </select>
+      <button class="btn" id="btnActualizar">🔄 Actualizar resultados</button>
+    </div>
+    <div id="estadoCarga" class="info-box">Cargando fixture...</div>
+    <div id="contenedorFixtures"></div>
+    <div class="debug" id="debugBox" style="display:none;"></div>
+  </section>
+
+  <section id="sec-posiciones">
+    <h2>Tabla de Posiciones</h2>
+    <table class="tabla-pos" id="tablaPosiciones">
+      <thead><tr><th>#</th><th>Participante</th><th>Aciertos</th><th>Jugados</th><th>%</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </section>
+
+  <section id="sec-carrera">
+    <h2>Carrera de Puntos (partido a partido)</h2>
+    <div class="top-bar-wrap"><canvas id="chartCarrera"></canvas></div>
+  </section>
+
+</main>
+
+<footer>Prode Clausura 2026 · datos vía API-Football · hecho para Pablo, Cristina, Julieta y Bianca</footer>
+
+<script>
+/* ===================== CONFIG ===================== */
+const PARTICIPANTES = ["Pablo","Cristina","Julieta","Bianca"];
+
+const firebaseConfig = {
+  apiKey: "AIzaSyA-Yi3buyLFfmGSK-IQqrZr7f3mnqK_A2U",
+  authDomain: "prode-clausura-2026.firebaseapp.com",
+  databaseURL: "https://prode-clausura-2026-default-rtdb.firebaseio.com",
+  projectId: "prode-clausura-2026",
+  storageBucket: "prode-clausura-2026.firebasestorage.app",
+  messagingSenderId: "505034699390",
+  appId: "1:505034699390:web:ba66bf0d09327b18481e2f"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+const API_FOOTBALL_KEY = "57e69605ffbb4f3bbb785c96198f53ef";
+const API_HOST = "https://v3.football.api-sports.io";
+const SEASON = 2026;
+// Intervalo mínimo entre llamadas reales a la API (para no gastar la cuota del plan free).
+const REFRESH_MIN_MINUTOS = 55;
+
+/* ===================== ESTADO EN MEMORIA ===================== */
+let LIGA_ID = null;
+let FIXTURES = [];       // [{id, round, date, home, away, golesHome, golesAway, estado}]
+let PRONOSTICOS = {};    // { [fixtureId]: { Pablo:"L", Cristina:"E", ... } }
+
+/* ===================== FETCH A LA API (con fallback CORS) ===================== */
+async function apiFetch(path){
+  const url = API_HOST + path;
+  try{
+    const r = await fetch(url, { headers: { "x-apisports-key": API_FOOTBALL_KEY } });
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    return await r.json();
+  }catch(err){
+    // Fallback por si el navegador bloquea la llamada directa por CORS.
+    // Nota: este proxy público no siempre reenvía headers de auth de forma confiable;
+    // si esto falla, hay que resolverlo con un pequeño proxy propio (Cloudflare Worker, etc).
+    console.warn("Fetch directo falló, probando proxy:", err.message);
+    const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(url);
+    const r2 = await fetch(proxied, { headers: { "x-apisports-key": API_FOOTBALL_KEY } });
+    if(!r2.ok) throw new Error("HTTP " + r2.status + " (via proxy)");
+    return await r2.json();
+  }
+}
+
+/* ===================== RESOLVER ID DE LIGA ===================== */
+async function resolverLigaId(){
+  const metaSnap = await db.ref("meta/ligaId").once("value");
+  if(metaSnap.exists()){
+    LIGA_ID = metaSnap.val();
+    return LIGA_ID;
+  }
+  const data = await apiFetch("/leagues?search=Argentina");
+  const candidatos = (data.response || []).filter(x =>
+    x.country && x.country.name === "Argentina" &&
+    x.league && x.league.name && x.league.name.toLowerCase().includes("liga profesional")
+  );
+  if(candidatos.length === 0){
+    throw new Error("No se encontró la Liga Profesional Argentina en la respuesta de api-football. Revisar manualmente.");
+  }
+  LIGA_ID = candidatos[0].league.id;
+  await db.ref("meta/ligaId").set(LIGA_ID);
+  return LIGA_ID;
+}
+
+/* ===================== TRAER FIXTURES ===================== */
+async function traerFixturesDesdeAPI(){
+  const ligaId = await resolverLigaId();
+  const data = await apiFetch(`/fixtures?league=${ligaId}&season=${SEASON}`);
+  const todos = data.response || [];
+
+  // Filtro: partidos del Clausura. La forma en que api-football nombra la ronda
+  // puede variar; si no aparece "clausura" en el nombre de ronda, usamos fecha >= 2026-07-01
+  // como respaldo (el Clausura arranca el 23/07/2026).
+  let filtrados = todos.filter(f => (f.league.round || "").toLowerCase().includes("clausura"));
+  if(filtrados.length === 0){
+    filtrados = todos.filter(f => new Date(f.fixture.date) >= new Date("2026-07-01"));
+  }
+
+  const fixtures = filtrados.map(f => ({
+    id: f.fixture.id,
+    round: f.league.round,
+    date: f.fixture.date,
+    home: f.teams.home.name,
+    away: f.teams.away.name,
+    golesHome: f.goals.home,
+    golesAway: f.goals.away,
+    estado: f.fixture.status.short // "NS","1H","HT","2H","FT", etc.
+  }));
+
+  fixtures.sort((a,b) => new Date(a.date) - new Date(b.date));
+
+  await db.ref("fixtures").set(fixtures);
+  await db.ref("meta/ultimoFetch").set(Date.now());
+  return fixtures;
+}
+
+async function obtenerFixtures(forzar){
+  const metaTs = await db.ref("meta/ultimoFetch").once("value");
+  const ultimo = metaTs.val() || 0;
+  const minutos = (Date.now() - ultimo) / 60000;
+
+  if(!forzar && minutos < REFRESH_MIN_MINUTOS){
+    const snap = await db.ref("fixtures").once("value");
+    if(snap.exists()) return snap.val();
+  }
+  try{
+    return await traerFixturesDesdeAPI();
+  }catch(err){
+    console.error("Error trayendo fixtures de la API:", err);
+    const snap = await db.ref("fixtures").once("value");
+    if(snap.exists()) return snap.val();
+    document.getElementById("estadoCarga").textContent =
+      "No se pudo traer el fixture desde api-football, y no hay datos guardados todavía. Revisá la consola (F12) para más detalle.";
+    throw err;
+  }
+}
+
+/* ===================== PRONÓSTICOS (FIREBASE) ===================== */
+function escucharPronosticos(){
+  db.ref("pronosticos").on("value", snap => {
+    PRONOSTICOS = snap.val() || {};
+    renderFixtures();
+    renderPosiciones();
+    renderCarrera();
+  });
+}
+
+async function guardarPronostico(fixtureId, jugador, valor){
+  await db.ref(`pronosticos/${fixtureId}/${jugador}`).set(valor);
+}
+
+/* ===================== PUNTAJE ===================== */
+// 1 punto si el pronóstico (L/E/V) coincide con el resultado real. 0 en cualquier otro caso.
+function signoReal(f){
+  if(f.golesHome === null || f.golesAway === null) return null;
+  if(f.golesHome > f.golesAway) return "L";
+  if(f.golesHome < f.golesAway) return "V";
+  return "E";
+}
+function partidoFinalizado(f){
+  return ["FT","AET","PEN"].includes(f.estado);
+}
+
+/* ===================== RENDER: FIXTURES ===================== */
+function renderFixtures(){
+  const cont = document.getElementById("contenedorFixtures");
+  const yo = document.getElementById("selYo").value;
+  if(!FIXTURES.length){ cont.innerHTML = ""; return; }
+
+  document.getElementById("estadoCarga").style.display = "none";
+
+  // Agrupar por ronda
+  const rondas = {};
+  FIXTURES.forEach(f => { (rondas[f.round] = rondas[f.round] || []).push(f); });
+
+  cont.innerHTML = Object.keys(rondas).map(ronda => {
+    const filas = rondas[ronda].map(f => {
+      const prono = PRONOSTICOS[f.id] || {};
+      const golesTxt = partidoFinalizado(f) ? `${f.golesHome} - ${f.golesAway}`
+                        : (f.golesHome !== null ? `${f.golesHome} - ${f.golesAway}` : "vs");
+      const estadoTxt = partidoFinalizado(f) ? "Finalizado"
+                        : (["1H","2H","HT"].includes(f.estado) ? "EN JUEGO" : new Date(f.date).toLocaleString("es-AR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}));
+      const estadoClase = ["1H","2H","HT"].includes(f.estado) ? "estado vivo" : "estado";
+
+      const celdasPron = PARTICIPANTES.map(p => {
+        const val = prono[p] || "";
+        const esYo = (p === yo);
+        const opciones = ["","L","E","V"].map(o =>
+          `<option value="${o}" ${o===val?"selected":""}>${o===""?"-":o}</option>`).join("");
+        if(esYo){
+          return `<td><select data-fixture="${f.id}" data-jugador="${p}" class="selPron ${val?'ok':''}">${opciones}</select></td>`;
+        }
+        return `<td>${val || "—"}</td>`;
+      }).join("");
+
+      return `<tr>
+        <td class="equipo">${f.home}</td>
+        <td><span class="marcador">${golesTxt}</span><br><span class="${estadoClase}">${estadoTxt}</span></td>
+        <td class="equipo">${f.away}</td>
+        ${celdasPron}
+      </tr>`;
+    }).join("");
+
+    return `<div class="jornada">
+      <div class="jornada-titulo">${ronda}</div>
+      <div class="partidos">
+        <table>
+          <thead><tr><th>Local</th><th>Resultado</th><th>Visitante</th>${PARTICIPANTES.map(p=>`<th>${p}</th>`).join("")}</tr></thead>
+          <tbody>${filas}</tbody>
+        </table>
+      </div>
+    </div>`;
+  }).join("");
+
+  document.querySelectorAll(".selPron").forEach(sel => {
+    sel.addEventListener("change", e => {
+      guardarPronostico(e.target.dataset.fixture, e.target.dataset.jugador, e.target.value);
+    });
+  });
+}
+
+/* ===================== RENDER: TABLA DE POSICIONES ===================== */
+function calcularPuntos(){
+  const puntos = {}; const jugados = {};
+  PARTICIPANTES.forEach(p => { puntos[p]=0; jugados[p]=0; });
+
+  FIXTURES.filter(partidoFinalizado).forEach(f => {
+    const real = signoReal(f);
+    if(!real) return;
+    const prono = PRONOSTICOS[f.id] || {};
+    PARTICIPANTES.forEach(p => {
+      if(prono[p]){
+        jugados[p]++;
+        if(prono[p] === real) puntos[p]++;
+      }
+    });
+  });
+  return { puntos, jugados };
+}
+
+function renderPosiciones(){
+  const { puntos, jugados } = calcularPuntos();
+  const filas = PARTICIPANTES
+    .map(p => ({ p, pts: puntos[p], j: jugados[p] }))
+    .sort((a,b) => b.pts - a.pts)
+    .map((r,i) => `<tr>
+        <td>${i+1}</td><td>${r.p}</td><td>${r.pts}</td><td>${r.j}</td>
+        <td>${r.j ? Math.round(r.pts/r.j*100)+"%" : "-"}</td>
+      </tr>`).join("");
+  document.querySelector("#tablaPosiciones tbody").innerHTML = filas;
+}
+
+/* ===================== RENDER: CARRERA DE PUNTOS ===================== */
+let chartCarrera = null;
+function renderCarrera(){
+  const finalizados = FIXTURES.filter(partidoFinalizado).sort((a,b)=> new Date(a.date)-new Date(b.date));
+  const acumulado = {}; PARTICIPANTES.forEach(p => acumulado[p]=0);
+  const historial = PARTICIPANTES.map(()=>[]);
+
+  finalizados.forEach(f => {
+    const real = signoReal(f);
+    const prono = PRONOSTICOS[f.id] || {};
+    PARTICIPANTES.forEach((p,i) => {
+      if(prono[p] && prono[p] === real) acumulado[p]++;
+      historial[i].push(acumulado[p]);
+    });
+  });
+
+  const ctx = document.getElementById("chartCarrera");
+  const labels = finalizados.map((f,i)=> `J${i+1}`);
+  const datasets = PARTICIPANTES.map((p,i) => ({
+    label: p,
+    data: historial[i],
+    tension: .3,
+    fill:false
+  }));
+
+  if(chartCarrera) chartCarrera.destroy();
+  chartCarrera = new Chart(ctx, {
+    type: "line",
+    data: { labels, datasets },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{ labels:{ color:"#e8eef4" } } },
+      scales:{
+        x:{ ticks:{ color:"#8ea3b8" }, grid:{ color:"#223245" } },
+        y:{ ticks:{ color:"#8ea3b8" }, grid:{ color:"#223245" }, beginAtZero:true }
+      }
+    }
+  });
+}
+
+/* ===================== NAV ===================== */
+document.querySelectorAll("nav button").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll("nav button").forEach(b=>b.classList.remove("activo"));
+    document.querySelectorAll("main section").forEach(s=>s.classList.remove("activo"));
+    btn.classList.add("activo");
+    document.getElementById("sec-" + btn.dataset.sec).classList.add("activo");
+  });
+});
+
+document.getElementById("selYo").addEventListener("change", renderFixtures);
+document.getElementById("btnActualizar").addEventListener("click", async () => {
+  const btn = document.getElementById("btnActualizar");
+  btn.disabled = true; btn.textContent = "Actualizando...";
+  try{
+    FIXTURES = await obtenerFixtures(true);
+    renderFixtures(); renderPosiciones(); renderCarrera();
+  }catch(e){ alert("Error al actualizar: " + e.message); }
+  btn.disabled = false; btn.textContent = "🔄 Actualizar resultados";
+});
+
+/* ===================== INIT ===================== */
+(async function init(){
+  try{
+    FIXTURES = await obtenerFixtures(false);
+    document.getElementById("estadoCarga").textContent = `Fixture cargado: ${FIXTURES.length} partidos.`;
+  }catch(e){
+    console.error(e);
+  }
+  escucharPronosticos();
+})();
+</script>
+</body>
+</html>

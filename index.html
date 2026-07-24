@@ -196,6 +196,13 @@ async function resolverLigaId(){
       ligas.map(l => `#${l.id} — ${l.nombre} (${l.tipo}) — temporadas: ${l.temporadas.join(",")}`).join("\n");
   }
 
+  if(data.errors && data.errors.rateLimit){
+    throw new Error("Límite de pedidos por minuto de api-football alcanzado (rateLimit). Esperá un minuto y volvé a intentar — no es un error del código.");
+  }
+  if(data.errors && data.errors.token){
+    throw new Error("api-football no reconoce la key (errors.token): " + data.errors.token);
+  }
+
   // 1) Buscamos por nombre, de forma flexible.
   let candidatos = ligas.filter(l =>
     l.tipo === "League" &&

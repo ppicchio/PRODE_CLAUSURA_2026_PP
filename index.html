@@ -141,8 +141,9 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-const API_FOOTBALL_KEY = "57e69605ffbb4f3bbb785c96198f53ef";
-const API_HOST = "https://v3.football.api-sports.io";
+// La key de api-football YA NO vive acá: queda guardada del lado del servidor,
+// dentro del Cloudflare Worker. Acá solo necesitamos la URL de ese Worker.
+const WORKER_URL = "https://prode-clausura-proxy.ppicchio.workers.dev";
 const SEASON = 2026;
 // Intervalo mínimo entre llamadas reales a la API (para no gastar la cuota del plan free).
 const REFRESH_MIN_MINUTOS = 55;
@@ -152,23 +153,12 @@ let LIGA_ID = null;
 let FIXTURES = [];       // [{id, round, date, home, away, golesHome, golesAway, estado}]
 let PRONOSTICOS = {};    // { [fixtureId]: { Pablo:"L", Cristina:"E", ... } }
 
-/* ===================== FETCH A LA API (con fallback CORS) ===================== */
+/* ===================== FETCH A LA API (vía Cloudflare Worker) ===================== */
 async function apiFetch(path){
-  const url = API_HOST + path;
-  try{
-    const r = await fetch(url, { headers: { "x-apisports-key": API_FOOTBALL_KEY } });
-    if(!r.ok) throw new Error("HTTP " + r.status);
-    return await r.json();
-  }catch(err){
-    // Fallback por si el navegador bloquea la llamada directa por CORS.
-    // Nota: este proxy público no siempre reenvía headers de auth de forma confiable;
-    // si esto falla, hay que resolverlo con un pequeño proxy propio (Cloudflare Worker, etc).
-    console.warn("Fetch directo falló, probando proxy:", err.message);
-    const proxied = "https://corsproxy.io/?url=" + encodeURIComponent(url);
-    const r2 = await fetch(proxied, { headers: { "x-apisports-key": API_FOOTBALL_KEY } });
-    if(!r2.ok) throw new Error("HTTP " + r2.status + " (via proxy)");
-    return await r2.json();
-  }
+  const url = `${WORKER_URL}?path=${encodeURIComponent(path)}`;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error("HTTP " + r.status + " (vía Worker)");
+  return await r.json();
 }
 
 /* ===================== RESOLVER ID DE LIGA ===================== */
@@ -191,6 +181,7 @@ async function resolverLigaId(){
   }));
 
   console.log("Respuesta cruda de /leagues?country=Argentina:", data);
+  window.__debugData = data; // para poder copiarla fácil: copy(JSON.stringify(window.__debugData))
   const debugBox = document.getElementById("debugBox");
   debugBox.style.display = "block";
   if(ligas.length === 0){

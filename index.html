@@ -231,6 +231,15 @@ async function traerFixturesDesdeAPI(){
   const data = await apiFetch(`/fixtures?league=${ligaId}&season=${SEASON}`);
   const todos = data.response || [];
 
+  const debugBox = document.getElementById("debugBox");
+  debugBox.style.display = "block";
+  const rondasUnicas = [...new Set(todos.map(f => f.league.round))];
+  debugBox.textContent =
+    `LIGA_ID usado: ${ligaId}\n` +
+    `Total de partidos devueltos por /fixtures (temporada ${SEASON}): ${todos.length}\n` +
+    (data.errors && Object.keys(data.errors).length ? `errors: ${JSON.stringify(data.errors)}\n` : "") +
+    `Rondas distintas encontradas:\n- ${rondasUnicas.join("\n- ")}`;
+
   // Filtro: partidos del Clausura. La forma en que api-football nombra la ronda
   // puede variar; si no aparece "clausura" en el nombre de ronda, usamos fecha >= 2026-07-01
   // como respaldo (el Clausura arranca el 23/07/2026).
